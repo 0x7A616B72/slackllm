@@ -5,7 +5,7 @@ from config import logger, SLACK_BOT_TOKEN, SLACK_SIGNING_SECRET
 from handlers.message_handler import MessageHandler
 from handlers.debug_handler import DebugHandler
 from views.home_tab import HomeTab
-from service.user_preferences_accessor import UserPreferenceAccessor
+from service.user_preferences_accessor import UserPreferencesAccessor
 
 # Initialize the Slack app
 app = App(
@@ -17,7 +17,7 @@ app = App(
 # Initialize handlers
 message_handler = MessageHandler()
 home_tab = HomeTab()
-user_preferences = UserPreferenceAccessor()
+user_preferences = UserPreferencesAccessor()
 
 def send_ack_to_slack(body, ack):
     """Acknowledge the request within 3 seconds, this is required by Slack."""

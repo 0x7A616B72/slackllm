@@ -1,7 +1,7 @@
 import boto3
 from config import logger, DYNAMODB_TABLE_NAME, BEDROCK_MODELS
 
-class UserPreferenceAccessor:
+class UserPreferencesAccessor:
     def __init__(self):
         self._dynamodb = None
         self._table = None

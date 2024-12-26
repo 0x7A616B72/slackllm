@@ -3,7 +3,7 @@ import datetime
 from botocore.exceptions import ClientError
 from config import logger, DEFAULT_BEDROCK_MODEL_ID
 
-class BedrockClient:
+class BedrockService:
     def __init__(self):
         self.client = boto3.client("bedrock-runtime")
 

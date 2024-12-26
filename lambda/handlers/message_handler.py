@@ -1,12 +1,12 @@
 import itertools
 from config import logger
-from service.bedrock_client import BedrockClient
-from service.user_preferences_accessor import UserPreferenceAccessor
+from service.bedrock_service import BedrockService
+from service.user_preferences_accessor import UserPreferencesAccessor
 
 class MessageHandler:
     def __init__(self):
-        self.bedrock_client = BedrockClient()
-        self.user_preferences = UserPreferenceAccessor()
+        self.bedrock_service = BedrockService()
+        self.user_preferences_accessor = UserPreferencesAccessor()
 
     def handle_message(self, body, say, app_client):
         logger.debug(body)
@@ -108,5 +108,5 @@ class MessageHandler:
             say(text=f"Error: {str(e)}", thread_ts=thread_ts)
 
     def _get_model_response(self, messages, user_id):
-        user_model = self.user_preferences.get_user_model(user_id)
-        return self.bedrock_client.invoke_model(messages, user_model) 
+        user_model = self.user_preferences_accessor.get_user_model(user_id)
+        return self.bedrock_service.invoke_model(messages, user_model) 

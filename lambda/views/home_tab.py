@@ -1,9 +1,9 @@
 from config import logger
-from service.user_preferences_accessor import UserPreferenceAccessor
+from service.user_preferences_accessor import UserPreferencesAccessor
 
 class HomeTab:
     def __init__(self):
-        self.user_preferences = UserPreferenceAccessor()
+        self.user_preferences = UserPreferencesAccessor()
 
     def update_view(self, client, user_id):
         try:
