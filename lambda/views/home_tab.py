@@ -3,12 +3,12 @@ from service.user_preferences_accessor import UserPreferencesAccessor
 
 class HomeTab:
     def __init__(self):
-        self.user_preferences = UserPreferencesAccessor()
+        self.user_preferences_accessor = UserPreferencesAccessor()
 
     def update_view(self, client, user_id):
         try:
-            current_model_id = self.user_preferences.get_user_model(user_id)
-            current_model_display = self.user_preferences.get_model_display_name(current_model_id)
+            current_model_id = self.user_preferences_accessor.get_user_model(user_id)
+            current_model_display = self.user_preferences_accessor.get_model_display_name(current_model_id)
 
             client.views_publish(
                 user_id=user_id,
@@ -69,7 +69,7 @@ class HomeTab:
                                 "type": "plain_text",
                                 "text": "Select a Bedrock model",
                             },
-                            "options": self.user_preferences.get_model_options(),
+                            "options": self.user_preferences_accessor.get_model_options(),
                             "action_id": "select_model",
                         }
                     ],
