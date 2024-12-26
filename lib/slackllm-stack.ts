@@ -2,9 +2,11 @@ import * as cdk from 'aws-cdk-lib';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import * as path from 'path';
+import { Construct } from 'constructs';
 
 export class SlackllmStack extends cdk.Stack {
-  constructor(scope: cdk.App, id: string, props?: cdk.StackProps) {
+  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
     // Parameters
@@ -17,7 +19,7 @@ export class SlackllmStack extends cdk.Stack {
       type: 'Number',
       default: 512,
       minValue: 128,
-      maxValue: 10240
+      maxValue: 2048,
     });
 
     // DynamoDB Table
@@ -27,16 +29,45 @@ export class SlackllmStack extends cdk.Stack {
         name: 'user_id',
         type: dynamodb.AttributeType.STRING
       },
-      removalPolicy: cdk.RemovalPolicy.RETAIN
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
-    // Lambda Function
+    const lambdaRole = new iam.Role(this, 'SlackllmRole', {
+      assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
+      managedPolicies: [
+        iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaBasicExecutionRole')
+      ]
+    });
+
+    lambdaRole.addToPolicy(new iam.PolicyStatement({
+      sid: 'AllowBedrockInvoke',
+      effect: iam.Effect.ALLOW,
+      actions: ['bedrock:InvokeModel'],
+      resources: ['*']
+    }));
+
+    lambdaRole.addToPolicy(new iam.PolicyStatement({
+      sid: 'AllowLambdaSelfInvoke',
+      effect: iam.Effect.ALLOW,
+      actions: ['lambda:InvokeFunction'],
+      resources: [`arn:aws:lambda:${this.region}:${this.account}:function:Slackllm`]
+    }));
+
     const lambdaFn = new lambda.Function(this, 'Slackllm', {
       functionName: 'Slackllm',
       runtime: lambda.Runtime.PYTHON_3_12,
-      architecture: lambda.Architecture.ARM_64,
       handler: 'slackllm.lambda_handler',
-      code: lambda.Code.fromAsset('./src'),
+      role: lambdaRole,
+      code: lambda.Code.fromAsset(path.join(__dirname, '../lambda'), {
+        bundling: {
+          image: lambda.Runtime.PYTHON_3_12.bundlingImage,
+          command: [
+            'bash', '-c',
+            'pip install -r requirements.txt -t /asset-output && cp -au . /asset-output'
+          ],
+        },
+      }),
       memorySize: memorySize.valueAsNumber,
       timeout: cdk.Duration.minutes(5),
       reservedConcurrentExecutions: 10,
@@ -48,29 +79,12 @@ export class SlackllmStack extends cdk.Stack {
       }
     });
 
-    // Function URL
+    table.grantReadWriteData(lambdaRole);
+
     const fnUrl = lambdaFn.addFunctionUrl({
       authType: lambda.FunctionUrlAuthType.NONE
     });
 
-    // IAM Policies
-    lambdaFn.addToRolePolicy(new iam.PolicyStatement({
-      sid: 'AllowLambdaSelfInvoke', 
-      effect: iam.Effect.ALLOW,
-      actions: ['lambda:InvokeFunction'],
-      resources: [`${lambdaFn.functionArn}*`]
-    }));
-
-    lambdaFn.addToRolePolicy(new iam.PolicyStatement({
-      sid: 'AllowBedrockInvoke',
-      effect: iam.Effect.ALLOW,
-      actions: ['bedrock:InvokeModel'],
-      resources: ['*']
-    }));
-
-    table.grantReadWriteData(lambdaFn);
-
-    // Outputs
     new cdk.CfnOutput(this, 'SlackllmUrl', {
       value: fnUrl.url
     });
