@@ -23,7 +23,7 @@ class BedrockService:
         """
         try:
             model_id = model_id or DEFAULT_BEDROCK_MODEL_ID
-            logger.info(f"Invoking Bedrock model: {model_id}")
+            logger.info(f"Invoking model {model_id} with {len(messages)} messages")
 
             response = self.client.converse(
                 messages = messages,
