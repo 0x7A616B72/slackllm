@@ -139,6 +139,52 @@ class TestMessageHandler(unittest.TestCase):
         self.mock_bedrock_instance.invoke_model.assert_called_once_with([expected_message], "model123")
         self.mock_say.assert_called_once_with("Bot response", thread_ts="123.456")
 
+    def test_handle_mention_with_video(self):
+        # Setup
+        self.mock_bedrock_instance.invoke_model.return_value = "Bot response"
+        self.mock_file_service_instance.download_file.return_value = b"video_content"
+
+        test_file = {
+            "name": "test.mp4",
+            "filetype": "mp4",
+            "url_private_download": "https://files.slack.com/test.mp4"
+        }
+
+        body = {
+            "event": {
+                "text": "<@BOT123> What's in this video?",
+                "user": "USER123",
+                "ts": "123.456",
+                "files": [test_file]
+            }
+        }
+
+        # Execute
+        self.handler.handle_message(body, self.mock_say, self.mock_app_client)
+
+        # Assert
+        self.mock_file_service_instance.download_file.assert_called_once_with(
+            "https://files.slack.com/test.mp4",
+            {"Authorization": "Bearer xoxb-test-token"}
+        )
+
+        expected_message = {
+            "role": "user",
+            "content": [
+                {"text": "What's in this video?"},
+                {
+                    "video": {
+                        "format": "mp4",
+                        "source": {
+                            "bytes": b"video_content"
+                        }
+                    }
+                }
+            ]
+        }
+        self.mock_bedrock_instance.invoke_model.assert_called_once_with([expected_message], "model123")
+        self.mock_say.assert_called_once_with("Bot response", thread_ts="123.456")
+
     def test_handle_mention_with_file_error(self):
         # Setup
         self.mock_bedrock_instance.invoke_model.return_value = "Bot response"
@@ -379,6 +425,69 @@ class TestMessageHandler(unittest.TestCase):
                         "format": "pdf",
                         "source": {
                             "bytes": b"document_content"
+                        }
+                    }
+                }
+            ]
+        }
+        self.assertEqual(result, expected_message)
+
+    def test_prepare_message_with_file_video(self):
+        # Test each supported video type
+        supported_types = ["mov", "mkv", "mp4", "webm", "flv", "mpeg", "mpg", "wmv", "three_gp"]
+        
+        for video_type in supported_types:
+            with self.subTest(video_type=video_type):
+                # Setup
+                file_content = b"video_content"
+                file_info = {
+                    "name": f"test.{video_type}",
+                    "filetype": video_type
+                }
+                text = f"Check this {video_type} video"
+
+                # Execute
+                result = self.handler._prepare_message_with_file(text, file_content, file_info)
+
+                # Assert
+                expected_message = {
+                    "role": "user",
+                    "content": [
+                        {"text": f"Check this {video_type} video"},
+                        {
+                            "video": {
+                                "format": video_type,
+                                "source": {
+                                    "bytes": b"video_content"
+                                }
+                            }
+                        }
+                    ]
+                }
+                self.assertEqual(result, expected_message)
+
+    def test_prepare_message_with_file_video_uppercase(self):
+        # Setup
+        file_content = b"video_content"
+        file_info = {
+            "name": "test.MP4",
+            "filetype": "MP4"
+        }
+        text = "Check this MP4 video"
+
+        # Execute
+        result = self.handler._prepare_message_with_file(text, file_content, file_info)
+
+        # Assert
+        expected_message = {
+            "role": "user",
+            "content": [
+                {"text": "Check this MP4 video"},
+                {
+                    "video": {
+                        "format": "mp4",
+                        "source": {
+                            "bytes": b"video_content"
                         }
                     }
                 }

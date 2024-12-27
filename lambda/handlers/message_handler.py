@@ -8,6 +8,7 @@ from service.user_preferences_accessor import UserPreferencesAccessor
 class MessageHandler:
     # Supported file types
     SUPPORTED_IMAGE_TYPES = ["png", "jpg", "jpeg", "gif", "webp"]
+    SUPPORTED_VIDEO_TYPES = ["mov", "mkv", "mp4", "webm", "flv", "mpeg", "mpg", "wmv", "three_gp"]
     SUPPORTED_DOCUMENT_TYPES = ["pdf", "csv", "doc", "docx", "xls", "xlsx", "html", "txt", "md"]
 
     def __init__(self):
@@ -183,6 +184,15 @@ class MessageHandler:
                     }
                 }
             })
+        elif filetype in self.SUPPORTED_VIDEO_TYPES:
+            message["content"].append({
+                "video": {
+                    "format": filetype,
+                    "source": {
+                        "bytes": file_content
+                    }
+                }
+            })
         elif filetype in self.SUPPORTED_DOCUMENT_TYPES:
             message["content"].append({
                 "document": {
@@ -196,7 +206,8 @@ class MessageHandler:
         else:
             raise ValueError(
                 f"Unsupported file type: {filetype}. Supported types are: "
-                f"images ({', '.join(self.SUPPORTED_IMAGE_TYPES)}) and "
+                f"images ({', '.join(self.SUPPORTED_IMAGE_TYPES)}), "
+                f"videos ({', '.join(self.SUPPORTED_VIDEO_TYPES)}), and "
                 f"documents ({', '.join(self.SUPPORTED_DOCUMENT_TYPES)})"
             )
 
