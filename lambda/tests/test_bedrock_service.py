@@ -2,6 +2,7 @@ import unittest
 from unittest.mock import Mock, patch
 from botocore.exceptions import ClientError
 from service.bedrock_service import BedrockService
+from config import BedrockModelConfig
 
 TEST_MODEL_ID = "test.model.id"
 ALTERNATE_MODEL_ID = "alternate.model.id"
@@ -36,7 +37,14 @@ class TestBedrockService(unittest.TestCase):
         }
 
     @patch('service.bedrock_service.DEFAULT_BEDROCK_MODEL_ID', TEST_MODEL_ID)
-    def test_should_use_default_system_prompt(self):
+    @patch('service.bedrock_service.BEDROCK_MODELS', [
+        BedrockModelConfig(
+            arn=TEST_MODEL_ID,
+            description="Test Model",
+            default_system_prompt="You are Test Model. The current time is {datetime}."
+        )
+    ])
+    def test_should_use_model_specific_system_prompt(self):
         # Setup
         self.mock_client.converse = Mock(return_value=self.mock_response)
         self.mock_prefs_instance.get_user_system_prompt.return_value = None
@@ -54,7 +62,36 @@ class TestBedrockService(unittest.TestCase):
         self.assertEqual(call_args.kwargs['messages'], self.test_messages)
         self.assertEqual(call_args.kwargs['modelId'], TEST_MODEL_ID)
         
-        # Assert the system prompt contains the default text
+        # Assert the system prompt contains the model-specific text
+        self.assertIn('system', call_args.kwargs)
+        self.assertTrue(len(call_args.kwargs['system']) == 1)
+        self.assertIn('text', call_args.kwargs['system'][0])
+        self.assertIn("You are Test Model", call_args.kwargs['system'][0]['text'])
+        self.assertIn("UTC", call_args.kwargs['system'][0]['text'])
+
+    @patch('service.bedrock_service.DEFAULT_BEDROCK_MODEL_ID', TEST_MODEL_ID)
+    @patch('service.bedrock_service.BEDROCK_MODELS', [
+        BedrockModelConfig(
+            arn=TEST_MODEL_ID,
+            description="Test Model",
+            default_system_prompt=""  # Empty default prompt
+        )
+    ])
+    def test_should_use_fallback_system_prompt_when_no_model_default(self):
+        # Setup
+        self.mock_client.converse = Mock(return_value=self.mock_response)
+        self.mock_prefs_instance.get_user_system_prompt.return_value = None
+
+        # Execute
+        result = self.service.invoke_model(self.test_messages)
+
+        # Assert
+        self.assertEqual(result, "Hello there!")
+        
+        # Get the actual call arguments
+        call_args = self.mock_client.converse.call_args
+        
+        # Assert the system prompt contains the fallback text
         self.assertIn('system', call_args.kwargs)
         self.assertTrue(len(call_args.kwargs['system']) == 1)
         self.assertIn('text', call_args.kwargs['system'][0])

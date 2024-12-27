@@ -53,13 +53,6 @@ def handle_model_selection(ack, body, client):
     try:
         # Set the user's model preference
         if user_preferences.set_user_model(user_id, selected_model):
-            # Get or set default system prompt for the new model
-            current_prompt = user_preferences.get_user_system_prompt(user_id, selected_model)
-            if current_prompt is None:
-                # Initialize with default prompt if none exists
-                default_prompt = bedrock_service._get_default_system_prompt()
-                user_preferences.set_user_system_prompt(user_id, selected_model, default_prompt)
-            
             # Update the home tab view using the client directly
             home_tab.update_view(client, user_id)
             

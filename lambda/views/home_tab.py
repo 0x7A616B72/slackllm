@@ -1,15 +1,21 @@
 from config import logger
 from service.user_preferences_accessor import UserPreferencesAccessor
+from service.bedrock_service import BedrockService
 
 class HomeTab:
     def __init__(self):
         self.user_preferences_accessor = UserPreferencesAccessor()
+        self.bedrock_service = BedrockService()
 
     def update_view(self, client, user_id):
         try:
             current_model_id = self.user_preferences_accessor.get_user_model(user_id)
             current_model_display = self.user_preferences_accessor.get_model_display_name(current_model_id)
-            current_system_prompt = self.user_preferences_accessor.get_user_system_prompt(user_id, current_model_id) if current_model_id else None
+            current_system_prompt = self.user_preferences_accessor.get_user_system_prompt(user_id, current_model_id)
+            
+            # If no custom prompt is set, get the default prompt
+            if current_system_prompt is None and current_model_id:
+                current_system_prompt = self.bedrock_service._get_default_system_prompt(current_model_id)
 
             client.views_publish(
                 user_id=user_id,

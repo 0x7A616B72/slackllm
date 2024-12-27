@@ -1,5 +1,5 @@
 import boto3
-from config import logger, DYNAMODB_TABLE_NAME, BEDROCK_MODELS
+from config import logger, DYNAMODB_TABLE_NAME, BEDROCK_MODELS, BedrockModelConfig
 
 class UserPreferencesAccessor:
     def __init__(self):
@@ -57,37 +57,29 @@ class UserPreferencesAccessor:
             logger.error(f"Error updating user preferences: {e}")
             return False
 
-    @staticmethod
-    def get_model_display_name(model_id):
-        """
-        Get the display name for a model ID.
+    def get_model_display_name(self, model_id: str) -> str:
+        """Get the display name for a given model ID."""
+        for model in BEDROCK_MODELS:
+            if model.arn == model_id:
+                return model.description
+        return model_id
 
-        Args:
-            model_id (str): The Bedrock model ID.
+    def get_available_models(self) -> list[dict]:
+        """Get a list of available models with their IDs and display names."""
+        return [{"id": model.arn, "name": model.description} for model in BEDROCK_MODELS]
 
-        Returns:
-            str: The display name for the model or "Not set" if not found.
-        """
-        for id, display_name in BEDROCK_MODELS:
-            if id == model_id:
-                return display_name
-        return "Not set"
-
-    @staticmethod
-    def get_model_options():
-        """
-        Get the list of available model options formatted for Slack dropdown.
-
-        Returns:
-            list: A list of dictionaries containing model information for Slack dropdown.
-        """
+    def get_model_options(self) -> list[dict]:
+        """Get a list of model options formatted for Slack's static_select component."""
         return [
             {
-                "text": {"type": "plain_text", "text": display_name},
-                "value": model_id
+                "text": {
+                    "type": "plain_text",
+                    "text": model.description
+                },
+                "value": model.arn
             }
-            for model_id, display_name in BEDROCK_MODELS
-        ] 
+            for model in BEDROCK_MODELS
+        ]
 
     def get_user_system_prompt(self, user_id, model_id):
         """

@@ -1,7 +1,7 @@
 import boto3
 import datetime
 from botocore.exceptions import ClientError
-from config import logger, DEFAULT_BEDROCK_MODEL_ID
+from config import logger, DEFAULT_BEDROCK_MODEL_ID, BEDROCK_MODELS
 from service.user_preferences_accessor import UserPreferencesAccessor
 
 class BedrockService:
@@ -32,9 +32,9 @@ class BedrockService:
             if user_id:
                 system_prompt = self.user_preferences.get_user_system_prompt(user_id, model_id)
 
-            # If no custom system prompt, use default
+            # If no custom system prompt, use default for this model
             if not system_prompt:
-                system_prompt = self._get_default_system_prompt()
+                system_prompt = self._get_default_system_prompt(model_id)
             else:
                 # Replace datetime placeholder with current UTC time
                 current_utc = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S UTC")
@@ -69,6 +69,16 @@ class BedrockService:
         logger.info(f"Total tokens: {token_usage['totalTokens']}")
         logger.info(f"Stop reason: {response['stopReason']}")
 
-    def _get_default_system_prompt(self):
-        """Returns the default system prompt."""
+    def _get_default_system_prompt(self, model_id=None):
+        """Returns the default system prompt for the specified model."""
+        # If model_id is provided, try to get its specific default prompt
+        if model_id:
+            for model in BEDROCK_MODELS:
+                if model.arn == model_id:
+                    if model.default_system_prompt:
+                        current_utc = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S UTC")
+                        return model.default_system_prompt.replace("{datetime}", current_utc)
+                    break
+
+        # Fallback to generic prompt if no model-specific prompt found
         return f"You are a helpful AI assistant. The current time is {datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S UTC")}."

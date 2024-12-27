@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import Mock, patch
 from botocore.exceptions import ClientError
 from service.user_preferences_accessor import UserPreferencesAccessor
-from config import BEDROCK_MODELS
+from config import BEDROCK_MODELS, BedrockModelConfig
 
 class TestUserPreferencesAccessor(unittest.TestCase):
     def setUp(self):
@@ -131,33 +131,29 @@ class TestUserPreferencesAccessor(unittest.TestCase):
             Item={"user_id": self.test_user_id, "model_id": self.test_model_id}
         )
 
-    def test_get_model_display_name_found(self):
+    def test_get_model_display_name(self):
         # Setup - using first model from BEDROCK_MODELS
-        test_model_id, expected_name = BEDROCK_MODELS[0]
+        test_model = BEDROCK_MODELS[0]
+        accessor = UserPreferencesAccessor()
 
-        # Execute
-        result = self.accessor.get_model_display_name(test_model_id)
-
-        # Assert
-        self.assertEqual(result, expected_name)
-
-    def test_get_model_display_name_not_found(self):
-        # Execute
-        result = self.accessor.get_model_display_name("non-existent-model")
+        # Test
+        result = accessor.get_model_display_name(test_model.arn)
 
         # Assert
-        self.assertEqual(result, "Not set")
+        self.assertEqual(result, test_model.description)
 
-    def test_get_model_options(self):
-        # Execute
-        result = self.accessor.get_model_options()
+    def test_get_available_models(self):
+        # Setup
+        accessor = UserPreferencesAccessor()
+
+        # Test
+        result = accessor.get_available_models()
 
         # Assert
         self.assertEqual(len(result), len(BEDROCK_MODELS))
-        for i, (model_id, display_name) in enumerate(BEDROCK_MODELS):
-            self.assertEqual(result[i]["text"]["type"], "plain_text")
-            self.assertEqual(result[i]["text"]["text"], display_name)
-            self.assertEqual(result[i]["value"], model_id)
+        for i, model in enumerate(BEDROCK_MODELS):
+            self.assertEqual(result[i]["id"], model.arn)
+            self.assertEqual(result[i]["name"], model.description)
 
     @patch('boto3.resource')
     def test_get_user_system_prompt_success(self, mock_boto3_resource):
@@ -292,6 +288,19 @@ class TestUserPreferencesAccessor(unittest.TestCase):
                 }
             }
         )
+
+    def test_get_model_options(self):
+        # Execute
+        options = self.accessor.get_model_options()
+
+        # Assert
+        self.assertIsInstance(options, list)
+        for option in options:
+            self.assertIn("text", option)
+            self.assertIn("value", option)
+            self.assertEqual(option["text"]["type"], "plain_text")
+            self.assertIsInstance(option["text"]["text"], str)
+            self.assertIsInstance(option["value"], str)
 
 if __name__ == '__main__':
     unittest.main() 
