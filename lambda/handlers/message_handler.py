@@ -16,7 +16,7 @@ class MessageHandler:
         message_text = body["event"].get("text", "")
         user_id = body["event"]["user"]
         files = body["event"].get("files", [])
-        logger.info(f"Processing message from user {user_id} with {len(files)} files")
+        logger.info(f"Processing message from user {user_id} with {len(files)} files.")
 
         # Process app mentions in public & private channels
         if f"<@{bot_user_id}>" in message_text:
@@ -108,5 +108,13 @@ class MessageHandler:
             say(text=f"Error: {str(e)}", thread_ts=thread_ts)
 
     def _get_model_response(self, messages, user_id):
-        user_model = self.user_preferences_accessor.get_user_model(user_id)
-        return self.bedrock_service.invoke_model(messages, user_model) 
+        # Get user's preferred model
+        model_id = self.user_preferences_accessor.get_user_model(user_id)
+
+        # Invoke the model with the prepared messages
+        response = self.bedrock_service.invoke_model(
+            messages=messages,
+            model_id=model_id,
+            user_id=user_id
+        )
+        return response 

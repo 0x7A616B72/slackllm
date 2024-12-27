@@ -6,6 +6,7 @@ from handlers.message_handler import MessageHandler
 from handlers.debug_handler import DebugHandler
 from views.home_tab import HomeTab
 from service.user_preferences_accessor import UserPreferencesAccessor
+from service.bedrock_service import BedrockService
 
 # Initialize the Slack app
 app = App(
@@ -18,6 +19,7 @@ app = App(
 message_handler = MessageHandler()
 home_tab = HomeTab()
 user_preferences = UserPreferencesAccessor()
+bedrock_service = BedrockService()
 
 def send_ack_to_slack(body, ack):
     """Acknowledge the request within 3 seconds, this is required by Slack."""
@@ -42,24 +44,58 @@ def update_home_tab_handler(client, event):
 
 # Model selection handlers
 @app.action("select_model")
-def handle_model_selection(ack, body, say):
+def handle_model_selection(ack, body, client):
     ack()
     user_id = body["user"]["id"]
     selected_model = body["actions"][0]["selected_option"]["value"]
     selected_model_display = body["actions"][0]["selected_option"]["text"]["text"]
 
     try:
+        # Set the user's model preference
         if user_preferences.set_user_model(user_id, selected_model):
-            home_tab.update_view(say.client, user_id)
-            say(
-                channel = user_id,
-                text = f"Your Bedrock model preference has been updated to: *{selected_model_display}*",
+            # Get or set default system prompt for the new model
+            current_prompt = user_preferences.get_user_system_prompt(user_id, selected_model)
+            if current_prompt is None:
+                # Initialize with default prompt if none exists
+                default_prompt = bedrock_service._get_default_system_prompt()
+                user_preferences.set_user_system_prompt(user_id, selected_model, default_prompt)
+            
+            # Update the home tab view using the client directly
+            home_tab.update_view(client, user_id)
+            
+            # Send confirmation message
+            client.chat_postMessage(
+                channel=user_id,
+                text=f"Your Bedrock model preference has been updated to: *{selected_model_display}*"
             )
     except Exception as e:
         logger.error(f"Error updating model preference: {e}")
-        say(
-            channel = user_id,
-            text = "There was an error saving your preference. Please try again later.",
+        client.chat_postMessage(
+            channel=user_id,
+            text="There was an error updating your model preference. Please try again later."
+        )
+
+@app.action("save_system_prompt")
+def handle_save_system_prompt(ack, body, client):
+    ack()
+    user_id = body["user"]["id"]
+    current_model = user_preferences.get_user_model(user_id)
+    
+    try:
+        # Get the system prompt from the input block
+        system_prompt = body["view"]["state"]["values"]["system_prompt_block"]["system_prompt_input"]["value"]
+        
+        if user_preferences.set_user_system_prompt(user_id, current_model, system_prompt):
+            home_tab.update_view(client, user_id)
+            client.chat_postMessage(
+                channel=user_id,
+                text="Your system prompt has been updated."
+            )
+    except Exception as e:
+        logger.error(f"Error saving system prompt: {e}")
+        client.chat_postMessage(
+            channel=user_id,
+            text="There was an error saving your system prompt. Please try again later."
         )
 
 @app.error

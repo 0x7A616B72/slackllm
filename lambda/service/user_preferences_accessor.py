@@ -43,7 +43,15 @@ class UserPreferencesAccessor:
             bool: True if successful, False otherwise.
         """
         try:
-            self.table.put_item(Item = {"user_id": user_id, "model_id": model_id})
+            # Get existing item to preserve other attributes
+            response = self.table.get_item(Key={"user_id": user_id})
+            item = response.get("Item", {"user_id": user_id})
+            
+            # Update model_id while preserving other attributes
+            item["model_id"] = model_id
+            
+            # Save back to DynamoDB
+            self.table.put_item(Item=item)
             return True
         except Exception as e:
             logger.error(f"Error updating user preferences: {e}")
@@ -80,3 +88,51 @@ class UserPreferencesAccessor:
             }
             for model_id, display_name in BEDROCK_MODELS
         ] 
+
+    def get_user_system_prompt(self, user_id, model_id):
+        """
+        Get the user's system prompt for a specific model.
+
+        Args:
+            user_id (str): The Slack user ID.
+            model_id (str): The Bedrock model ID.
+
+        Returns:
+            str: The user's system prompt for the model or None if not set.
+        """
+        try:
+            response = self.table.get_item(Key={"user_id": user_id})
+            system_prompts = response.get("Item", {}).get("system_prompts", {})
+            return system_prompts.get(model_id)
+        except Exception as e:
+            logger.error(f"Error fetching user system prompt: {e}")
+            return None
+
+    def set_user_system_prompt(self, user_id, model_id, system_prompt):
+        """
+        Set the user's system prompt for a specific model.
+
+        Args:
+            user_id (str): The Slack user ID.
+            model_id (str): The Bedrock model ID.
+            system_prompt (str): The system prompt to set.
+
+        Returns:
+            bool: True if successful, False otherwise.
+        """
+        try:
+            # Get existing system prompts
+            response = self.table.get_item(Key={"user_id": user_id})
+            item = response.get("Item", {"user_id": user_id})
+            system_prompts = item.get("system_prompts", {})
+            
+            # Update the system prompt for this model
+            system_prompts[model_id] = system_prompt
+            item["system_prompts"] = system_prompts
+            
+            # Save back to DynamoDB
+            self.table.put_item(Item=item)
+            return True
+        except Exception as e:
+            logger.error(f"Error updating user system prompt: {e}")
+            return False 

@@ -48,10 +48,14 @@ class TestMessageHandler(unittest.TestCase):
             [],
             self.mock_app_client
         )
-        self.mock_bedrock_instance.invoke_model.assert_called_once_with([{
-            "role": "user",
-            "content": [{"text": "Hello bot"}]
-        }], "model123")
+        self.mock_bedrock_instance.invoke_model.assert_called_once_with(
+            messages=[{
+                "role": "user",
+                "content": [{"text": "Hello bot"}]
+            }],
+            model_id="model123",
+            user_id="USER123"
+        )
         self.mock_say.assert_called_once_with("Bot response", thread_ts="123.456")
 
     def test_handle_direct_message(self):
@@ -81,10 +85,14 @@ class TestMessageHandler(unittest.TestCase):
             [],
             self.mock_app_client
         )
-        self.mock_bedrock_instance.invoke_model.assert_called_once_with([{
-            "role": "user",
-            "content": [{"text": "Hello bot"}]
-        }], "model123")
+        self.mock_bedrock_instance.invoke_model.assert_called_once_with(
+            messages=[{
+                "role": "user",
+                "content": [{"text": "Hello bot"}]
+            }],
+            model_id="model123",
+            user_id="USER123"
+        )
         self.mock_say.assert_called_once_with("Bot response", thread_ts="123.456")
 
     def test_handle_thread_with_files(self):
