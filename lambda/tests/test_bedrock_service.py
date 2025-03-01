@@ -6,6 +6,7 @@ from config import BedrockModelConfig
 
 TEST_MODEL_ID = "test.model.id"
 ALTERNATE_MODEL_ID = "alternate.model.id"
+SONNET_REASONING_MODEL_ID = "arn:aws:bedrock:us-east-1:705478596818:inference-profile/us.anthropic.claude-3-7-sonnet-20250219-v1:0"
 
 class TestBedrockService(unittest.TestCase):
     @patch('boto3.client')
@@ -175,6 +176,134 @@ class TestBedrockService(unittest.TestCase):
 
         # Assert
         self.assertEqual(result, "Hello World!")
+
+    @patch('service.bedrock_service.BEDROCK_MODELS', [
+        BedrockModelConfig(
+            arn=SONNET_REASONING_MODEL_ID,
+            description="Anthropic Claude 3.7 Sonnet Reasoning (Text, Image, Document)",
+            default_system_prompt="You are Claude 3.7 Sonnet Reasoning."
+        ),
+        BedrockModelConfig(
+            arn="arn:aws:bedrock:us-east-1:705478596818:inference-profile/us.anthropic.claude-3-5-sonnet-20241022-v2:0",
+            description="Anthropic Claude 3.5 Sonnet V2 (Text, Image, Document)",
+            default_system_prompt="You are Claude 3.5 Sonnet."
+        )
+    ])
+    def test_is_sonnet_reasoning_model_should_identify_correctly(self):
+        # Test with Sonnet 3.7 Reasoning model
+        self.assertTrue(self.service._is_sonnet_reasoning_model(SONNET_REASONING_MODEL_ID))
+        
+        # Test with non-reasoning model
+        self.assertFalse(self.service._is_sonnet_reasoning_model("arn:aws:bedrock:us-east-1:705478596818:inference-profile/us.anthropic.claude-3-5-sonnet-20241022-v2:0"))
+        
+        # Test with non-Sonnet model
+        self.assertFalse(self.service._is_sonnet_reasoning_model("arn:aws:bedrock:us-east-1:705478596818:inference-profile/us.amazon.nova-pro-v1:0"))
+
+    def test_process_reasoning_response_should_format_correctly(self):
+        # Setup a mock response with reasoning content
+        mock_response = {
+            "output": {
+                "message": {
+                    "content": [
+                        {"text": "Final answer"},
+                        {"reasoningContent": {
+                            "reasoningText": {
+                                "text": "First thinking paragraph.\nWith multiple lines.\n\nSecond thinking paragraph."
+                            }
+                        }}
+                    ]
+                }
+            },
+            "usage": {
+                "inputTokens": 10,
+                "outputTokens": 20,
+                "totalTokens": 30
+            },
+            "stopReason": "complete"
+        }
+        
+        # Execute
+        result = self.service._process_reasoning_response(mock_response)
+        
+        # Assert
+        expected_output = "> First thinking paragraph.\n> With multiple lines.\n\n> Second thinking paragraph.\n\nFinal answer"
+        self.assertEqual(result, expected_output)
+
+    @patch('service.bedrock_service.BEDROCK_MODELS', [
+        BedrockModelConfig(
+            arn=SONNET_REASONING_MODEL_ID,
+            description="Anthropic Claude 3.7 Sonnet Reasoning (Text, Image, Document)",
+            default_system_prompt="You are Claude 3.7 Sonnet Reasoning."
+        )
+    ])
+    def test_invoke_model_should_add_thinking_config_for_sonnet_reasoning(self):
+        # Setup
+        self.mock_client.converse = Mock(return_value={
+            "output": {
+                "message": {
+                    "content": [
+                        {"text": "Final answer"},
+                        {"reasoningContent": {
+                            "reasoningText": {
+                                "text": "Thinking process"
+                            }
+                        }}
+                    ]
+                }
+            },
+            "usage": {
+                "inputTokens": 10,
+                "outputTokens": 20,
+                "totalTokens": 30
+            },
+            "stopReason": "complete"
+        })
+        
+        # Execute
+        result = self.service.invoke_model(self.test_messages, model_id=SONNET_REASONING_MODEL_ID)
+        
+        # Assert
+        call_args = self.mock_client.converse.call_args
+        
+        # Check that thinking configuration was added
+        self.assertIn('inferenceConfig', call_args.kwargs)
+        
+        self.assertIn('additionalModelRequestFields', call_args.kwargs)
+        self.assertIn('thinking', call_args.kwargs['additionalModelRequestFields'])
+        
+        # Verify thinking configuration structure (type and budget_tokens)
+        thinking_config = call_args.kwargs['additionalModelRequestFields']['thinking']
+        self.assertEqual(thinking_config["type"], "enabled")
+        self.assertIn("budget_tokens", thinking_config)
+        self.assertIsInstance(thinking_config["budget_tokens"], int)
+        
+        # Check that the response was processed correctly
+        self.assertEqual(result, "> Thinking process\n\nFinal answer")
+
+    @patch('service.bedrock_service.BEDROCK_MODELS', [
+        BedrockModelConfig(
+            arn="arn:aws:bedrock:us-east-1:705478596818:inference-profile/us.anthropic.claude-3-5-sonnet-20241022-v2:0",
+            description="Anthropic Claude 3.5 Sonnet V2 (Text, Image, Document)",
+            default_system_prompt="You are Claude 3.5 Sonnet."
+        )
+    ])
+    def test_invoke_model_should_not_add_thinking_config_for_non_reasoning_models(self):
+        # Setup
+        self.mock_client.converse = Mock(return_value=self.mock_response)
+        non_reasoning_model = "arn:aws:bedrock:us-east-1:705478596818:inference-profile/us.anthropic.claude-3-5-sonnet-20241022-v2:0"
+        
+        # Execute
+        result = self.service.invoke_model(self.test_messages, model_id=non_reasoning_model)
+        
+        # Assert
+        call_args = self.mock_client.converse.call_args
+        
+        # Check that thinking configuration was not added
+        self.assertNotIn('inferenceConfig', call_args.kwargs)
+        self.assertNotIn('additionalModelRequestFields', call_args.kwargs)
+        
+        # Check that the response was processed correctly
+        self.assertEqual(result, "Hello there!")
 
 if __name__ == '__main__':
     unittest.main()

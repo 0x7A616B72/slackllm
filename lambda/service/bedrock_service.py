@@ -41,15 +41,39 @@ class BedrockService:
                 system_prompt = system_prompt.replace("{datetime}", current_utc)
             logger.info(f"Latest message text: {messages[-1]['content'][0]['text']}")
             logger.info(f"Using system prompt: {system_prompt}")
-            response = self.client.converse(
-                messages=messages,
-                modelId=model_id,
-                system=[{"text": system_prompt}],
-            )
-
-            output_text = "".join(
-                content["text"] for content in response["output"]["message"]["content"]
-            )
+            
+            # Check if this is the Claude 3.7 Sonnet Reasoning model
+            is_sonnet_reasoning = self._is_sonnet_reasoning_model(model_id)
+            
+            # Prepare converse parameters
+            converse_params = {
+                "messages": messages,
+                "modelId": model_id,
+                "system": [{"text": system_prompt}],
+            }
+            
+            # Add thinking configuration for Claude 3.7 Sonnet Reasoning
+            if is_sonnet_reasoning:
+                logger.info("Using extended thinking mode for Claude 3.7 Sonnet Reasoning")
+                converse_params["inferenceConfig"] = {"maxTokens": 64000}
+                converse_params["additionalModelRequestFields"] = {
+                    "thinking": {
+                        "type": "enabled",
+                        "budget_tokens": 48000, # needs to be less than maxTokens
+                    }
+                }
+            
+            # Invoke the model
+            response = self.client.converse(**converse_params)
+            logger.info(f"Model response: {response}")
+            
+            # Process the response
+            if is_sonnet_reasoning:
+                output_text = self._process_reasoning_response(response)
+            else:
+                output_text = "".join(
+                    content["text"] for content in response["output"]["message"]["content"]
+                )
 
             self._log_usage_metrics(response)
             return output_text
@@ -61,6 +85,62 @@ class BedrockService:
             logger.error(f"Unexpected error occurred: {e}")
             raise
 
+    def _process_reasoning_response(self, response):
+        """
+        Process the response from Claude 3.7 Sonnet Reasoning model.
+        Extracts both reasoning text and standard text, formatting reasoning as quoted messages.
+        
+        Args:
+            response (dict): The response from the Bedrock Converse API.
+            
+        Returns:
+            str: The formatted output text with reasoning as quoted messages.
+        """
+        output_text = ""
+        standard_text = ""
+        
+        # Process each content block
+        for block in response["output"]["message"]["content"]:
+            if "text" in block:
+                standard_text = block["text"]
+            elif "reasoningContent" in block:
+                # Extract thinking/reasoning text
+                thinking_text = block["reasoningContent"]["reasoningText"]["text"]
+                
+                # Format thinking text as quoted messages in Slack markdown
+                # Split by newlines and format each paragraph as a quote
+                thinking_paragraphs = thinking_text.split("\n\n")
+                for paragraph in thinking_paragraphs:
+                    if paragraph.strip():
+                        # Format as Slack quote (> at the beginning of each line)
+                        formatted_paragraph = "\n".join([f"> {line}" for line in paragraph.split("\n")])
+                        output_text += f"{formatted_paragraph}\n\n"
+        
+        # Add the standard response text after the thinking blocks
+        output_text += standard_text
+        
+        return output_text
+        
+    def _is_sonnet_reasoning_model(self, model_id):
+        """
+        Check if the model is Claude 3.7 Sonnet Reasoning.
+        
+        Args:
+            model_id (str): The model ID to check.
+            
+        Returns:
+            bool: True if the model is Claude 3.7 Sonnet Reasoning, False otherwise.
+        """
+        # Check if the model is Claude 3.7 Sonnet
+        is_sonnet_37 = "claude-3-7-sonnet" in model_id
+        
+        # Check if this is the Reasoning configuration
+        for model in BEDROCK_MODELS:
+            if model.arn == model_id and "Reasoning" in model.description and is_sonnet_37:
+                return True
+        
+        return False
+    
     def _log_usage_metrics(self, response):
         """Log token usage and other metrics from the model response."""
         token_usage = response["usage"]
