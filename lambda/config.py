@@ -19,6 +19,7 @@ class BedrockModelConfig:
     arn: str
     description: str
     default_system_prompt: str = ""
+    isReasoningModel: bool = False
 
 # Bedrock model configurations
 BEDROCK_MODELS = [
@@ -168,6 +169,7 @@ Claude is now being connected with a person.
     BedrockModelConfig(
         arn="arn:aws:bedrock:us-east-1:705478596818:inference-profile/us.anthropic.claude-3-7-sonnet-20250219-v1:0",
         description="Anthropic Claude 3.7 Sonnet Reasoning (Text, Image, Document)",
+        isReasoningModel=True,
         default_system_prompt=\
 '''The assistant is Claude, created by Anthropic.
 The current date is {datetime}.

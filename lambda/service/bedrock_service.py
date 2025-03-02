@@ -42,8 +42,8 @@ class BedrockService:
             logger.info(f"Latest message text: {messages[-1]['content'][0]['text']}")
             logger.info(f"Using system prompt: {system_prompt}")
             
-            # Check if this is the Claude 3.7 Sonnet Reasoning model
-            is_sonnet_reasoning = self._is_sonnet_reasoning_model(model_id)
+            # Check if this is a reasoning model
+            is_reasoning_model = self._is_reasoning_model(model_id)
             
             # Prepare converse parameters
             converse_params = {
@@ -52,9 +52,9 @@ class BedrockService:
                 "system": [{"text": system_prompt}],
             }
             
-            # Add thinking configuration for Claude 3.7 Sonnet Reasoning
-            if is_sonnet_reasoning:
-                logger.info("Using extended thinking mode for Claude 3.7 Sonnet Reasoning")
+            # Add thinking configuration for reasoning models
+            if is_reasoning_model:
+                logger.info(f"Using extended thinking mode for reasoning model: {model_id}")
                 converse_params["inferenceConfig"] = {"maxTokens": 64000}
                 converse_params["additionalModelRequestFields"] = {
                     "thinking": {
@@ -68,7 +68,7 @@ class BedrockService:
             logger.info(f"Model response: {response}")
             
             # Process the response
-            if is_sonnet_reasoning:
+            if is_reasoning_model:
                 output_text = self._process_reasoning_response(response)
             else:
                 output_text = "".join(
@@ -121,24 +121,19 @@ class BedrockService:
         
         return output_text
         
-    def _is_sonnet_reasoning_model(self, model_id):
+    def _is_reasoning_model(self, model_id):
         """
-        Check if the model is Claude 3.7 Sonnet Reasoning.
+        Check if the model is a reasoning model.
         
         Args:
             model_id (str): The model ID to check.
             
         Returns:
-            bool: True if the model is Claude 3.7 Sonnet Reasoning, False otherwise.
+            bool: True if the model is a reasoning model, False otherwise.
         """
-        # Check if the model is Claude 3.7 Sonnet
-        is_sonnet_37 = "claude-3-7-sonnet" in model_id
-        
-        # Check if this is the Reasoning configuration
         for model in BEDROCK_MODELS:
-            if model.arn == model_id and "Reasoning" in model.description and is_sonnet_37:
+            if model.arn == model_id and model.isReasoningModel:
                 return True
-        
         return False
     
     def _log_usage_metrics(self, response):

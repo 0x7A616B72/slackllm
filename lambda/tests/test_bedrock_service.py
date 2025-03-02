@@ -180,24 +180,21 @@ class TestBedrockService(unittest.TestCase):
     @patch('service.bedrock_service.BEDROCK_MODELS', [
         BedrockModelConfig(
             arn=SONNET_REASONING_MODEL_ID,
-            description="Anthropic Claude 3.7 Sonnet Reasoning (Text, Image, Document)",
-            default_system_prompt="You are Claude 3.7 Sonnet Reasoning."
+            description="Test Reasoning Model",
+            isReasoningModel=True
         ),
         BedrockModelConfig(
             arn="arn:aws:bedrock:us-east-1:705478596818:inference-profile/us.anthropic.claude-3-5-sonnet-20241022-v2:0",
-            description="Anthropic Claude 3.5 Sonnet V2 (Text, Image, Document)",
-            default_system_prompt="You are Claude 3.5 Sonnet."
+            description="Test Non-Reasoning Model"
         )
     ])
-    def test_is_sonnet_reasoning_model_should_identify_correctly(self):
-        # Test with Sonnet 3.7 Reasoning model
-        self.assertTrue(self.service._is_sonnet_reasoning_model(SONNET_REASONING_MODEL_ID))
+    def test_is_reasoning_model_should_identify_correctly(self):
+        # Test with a reasoning model
+        self.assertTrue(self.service._is_reasoning_model(SONNET_REASONING_MODEL_ID))
         
-        # Test with non-reasoning model
-        self.assertFalse(self.service._is_sonnet_reasoning_model("arn:aws:bedrock:us-east-1:705478596818:inference-profile/us.anthropic.claude-3-5-sonnet-20241022-v2:0"))
-        
-        # Test with non-Sonnet model
-        self.assertFalse(self.service._is_sonnet_reasoning_model("arn:aws:bedrock:us-east-1:705478596818:inference-profile/us.amazon.nova-pro-v1:0"))
+        # Test with non-reasoning models
+        self.assertFalse(self.service._is_reasoning_model("arn:aws:bedrock:us-east-1:705478596818:inference-profile/us.anthropic.claude-3-5-sonnet-20241022-v2:0"))
+        self.assertFalse(self.service._is_reasoning_model("arn:aws:bedrock:us-east-1:705478596818:inference-profile/us.amazon.nova-pro-v1:0"))
 
     def test_process_reasoning_response_should_format_correctly(self):
         # Setup a mock response with reasoning content
@@ -232,8 +229,12 @@ class TestBedrockService(unittest.TestCase):
     @patch('service.bedrock_service.BEDROCK_MODELS', [
         BedrockModelConfig(
             arn=SONNET_REASONING_MODEL_ID,
-            description="Anthropic Claude 3.7 Sonnet Reasoning (Text, Image, Document)",
-            default_system_prompt="You are Claude 3.7 Sonnet Reasoning."
+            description="Test Reasoning Model",
+            isReasoningModel=True
+        ),
+        BedrockModelConfig(
+            arn="arn:aws:bedrock:us-east-1:705478596818:inference-profile/us.anthropic.claude-3-5-sonnet-20241022-v2:0",
+            description="Test Non-Reasoning Model"
         )
     ])
     def test_invoke_model_should_add_thinking_config_for_sonnet_reasoning(self):
@@ -283,8 +284,7 @@ class TestBedrockService(unittest.TestCase):
     @patch('service.bedrock_service.BEDROCK_MODELS', [
         BedrockModelConfig(
             arn="arn:aws:bedrock:us-east-1:705478596818:inference-profile/us.anthropic.claude-3-5-sonnet-20241022-v2:0",
-            description="Anthropic Claude 3.5 Sonnet V2 (Text, Image, Document)",
-            default_system_prompt="You are Claude 3.5 Sonnet."
+            description="Test Non-Reasoning Model"
         )
     ])
     def test_invoke_model_should_not_add_thinking_config_for_non_reasoning_models(self):
